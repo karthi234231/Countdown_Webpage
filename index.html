@@ -309,16 +309,20 @@
 </div>
 
 <script>
-  /* ════════════════════════════════════════
-     CONFIG — change these to customise
-  ════════════════════════════════════════ */
-  const TARGET_DATE  = new Date('2026-01-01T00:00:00');
-  const EVENT_TITLE  = 'New Year <span>2026</span>';
-  const DONE_MESSAGE = "🎉 Happy New Year!";
-  /* ════════════════════════════════════════ */
+  /* ── Auto-detect next New Year ── */
+  function getNextNewYear() {
+    const now = new Date();
+    const jan1 = new Date(now.getFullYear(), 0, 1); // Jan 1 this year midnight
+    // If we're past Jan 1 00:00:00 by more than 24 hours, target next year
+    const celebrating = (now - jan1) < 24 * 60 * 60 * 1000; // within 24h of Jan 1
+    const targetYear = celebrating ? now.getFullYear() : now.getFullYear() + 1;
+    return { date: new Date(targetYear, 0, 1, 0, 0, 0), year: targetYear, celebrating };
+  }
 
-  // Set display date
-  document.querySelector('.event-title').innerHTML = EVENT_TITLE;
+  let { date: TARGET_DATE, year: TARGET_YEAR, celebrating: IS_CELEBRATING } = getNextNewYear();
+
+  // Set display
+  document.querySelector('.event-title').innerHTML = `New Year <span>${TARGET_YEAR}</span>`;
   document.getElementById('target-display').textContent =
     TARGET_DATE.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
@@ -360,19 +364,40 @@
     const topInner = document.getElementById(`topInner-${unit}`);
     const bottomInner = document.getElementById(`bottomInner-${unit}`);
 
-    // Set old on top, new on bottom
     topInner.textContent    = pad(cur ?? newVal);
     bottomInner.textContent = pad(newVal);
     staticEl.textContent    = pad(newVal);
 
-    // Trigger animation
     topEl.classList.remove('animating');
     bottomEl.classList.remove('animating');
-    void topEl.offsetWidth; // reflow
+    void topEl.offsetWidth;
     topEl.classList.add('animating');
     bottomEl.classList.add('animating');
 
     cards[unit].prev = newVal;
+  }
+
+  let celebrateTimer = null;
+
+  function showCelebration() {
+    UNITS.forEach(u => flip(u, 0));
+    const doneEl = document.getElementById('done-msg');
+    doneEl.textContent = `🎉 Happy New Year ${TARGET_YEAR}!`;
+    doneEl.style.display = 'block';
+
+    // After 24 hours window, auto-switch to next year countdown
+    celebrateTimer = setTimeout(() => {
+      doneEl.style.display = 'none';
+      // Reset cards
+      UNITS.forEach(u => { cards[u].prev = null; });
+      const next = getNextNewYear();
+      TARGET_DATE = next.date;
+      TARGET_YEAR = next.year;
+      document.querySelector('.event-title').innerHTML = `New Year <span>${TARGET_YEAR}</span>`;
+      document.getElementById('target-display').textContent =
+        TARGET_DATE.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+      tick();
+    }, 24 * 60 * 60 * 1000);
   }
 
   function tick() {
@@ -380,9 +405,7 @@
     const diff = TARGET_DATE - now;
 
     if (diff <= 0) {
-      UNITS.forEach(u => flip(u, 0));
-      document.getElementById('done-msg').style.display = 'block';
-      document.getElementById('done-msg').textContent = DONE_MESSAGE;
+      showCelebration();
       return;
     }
 
@@ -399,7 +422,12 @@
     requestAnimationFrame(() => setTimeout(tick, 250));
   }
 
-  tick();
+  // If already in celebration window on load
+  if (IS_CELEBRATING) {
+    showCelebration();
+  } else {
+    tick();
+  }
 
 
 </script>
